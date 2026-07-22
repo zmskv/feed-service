@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"github.com/zmskv/feed-service/config"
+	"github.com/zmskv/feed-service/internal/config"
 	"github.com/zmskv/feed-service/logger"
 )
 
