@@ -1,0 +1,67 @@
+version: '3'
+
+vars:
+  STORAGE: memory
+  THRESHOLD: 70
+
+tasks:
+  run:
+    cmds:
+      - go run ./cmd/server --storage={{.STORAGE}}
+
+  run:debug:
+    cmds:
+      - go run -tags pprof ./cmd/server --storage={{.STORAGE}}
+
+  build:
+    cmds:
+      - go build -o bin/server ./cmd/server
+
+  build:debug:
+    desc: билд с pprof
+    cmds:
+      - go build -tags pprof -o bin/server-debug ./cmd/server
+
+  test:
+    cmds:
+      - go test ./... -race -cover
+
+  test:coverage:
+    desc: тесты + отчёт покрытия + порог
+    cmds:
+      - go test ./... -race -coverprofile=coverage.out
+      - go tool cover -func=coverage.out
+      - |
+        pct=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+        echo "coverage: $pct%"
+        awk -v p="$pct" -v t="{{.THRESHOLD}}" 'BEGIN { exit (p < t) }'
+
+  generate:
+    desc: gqlgen codegen из schema.graphqls
+    cmds:
+      - go run github.com/99designs/gqlgen generate
+
+  migrate:
+    desc: применить миграции к postgres
+    cmds:
+      - migrate -path migrations -database "$DATABASE_URL" up
+
+  lint:
+    cmds:
+      - golangci-lint run
+
+  docker-build:
+    cmds:
+      - docker build -t feed-service .
+
+  docker-up:
+    cmds:
+      - docker-compose up --build
+
+  profile:cpu:
+    cmds:
+      - go tool pprof -http=:8081 http://localhost:6060/debug/pprof/profile?seconds=30
+
+  profile:heap:
+    cmds:
+      - go tool pprof -http=:8081 http://localhost:6060/debug/pprof/heap
