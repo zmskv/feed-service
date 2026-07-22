@@ -50,3 +50,27 @@ type Query {
   posts(first: Int!, after: String): PostConnection!
   post(id: ID!): Post
 }
+
+input CreatePostInput {
+  authorId: ID!
+  title: String!
+  body: String!
+}
+
+input CreateCommentInput {
+  postId: ID!
+  parentId: ID
+  authorId: ID!
+  body: String!
+}
+
+input DisableCommentsInput {
+  postId: ID!
+  requesterId: ID!
+}
+
+type Mutation {
+  createPost(input: CreatePostInput!): Post!
+  createComment(input: CreateCommentInput!): Comment!
+  disableComments(input: DisableCommentsInput!): Post!
+}

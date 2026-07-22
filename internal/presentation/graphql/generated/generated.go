@@ -29,6 +29,7 @@ type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
 	Comment() CommentResolver
+	Mutation() MutationResolver
 	Post() PostResolver
 	Query() QueryResolver
 }
@@ -54,6 +55,12 @@ type ComplexityRoot struct {
 	CommentEdge struct {
 		Cursor func(childComplexity int) int
 		Node   func(childComplexity int) int
+	}
+
+	Mutation struct {
+		CreateComment   func(childComplexity int, input CreateCommentInput) int
+		CreatePost      func(childComplexity int, input CreatePostInput) int
+		DisableComments func(childComplexity int, input DisableCommentsInput) int
 	}
 
 	PageInfo struct {
@@ -93,6 +100,11 @@ type ComplexityRoot struct {
 
 type CommentResolver interface {
 	Replies(ctx context.Context, obj *Comment, first int, after *string) (*CommentConnection, error)
+}
+type MutationResolver interface {
+	CreatePost(ctx context.Context, input CreatePostInput) (*Post, error)
+	CreateComment(ctx context.Context, input CreateCommentInput) (*Comment, error)
+	DisableComments(ctx context.Context, input DisableCommentsInput) (*Post, error)
 }
 type PostResolver interface {
 	Comments(ctx context.Context, obj *Post, first int, after *string) (*CommentConnection, error)
@@ -187,6 +199,40 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CommentEdge.Node(childComplexity), true
+
+	case "Mutation.createComment":
+		if e.ComplexityRoot.Mutation.CreateComment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createComment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateComment(childComplexity, args["input"].(CreateCommentInput)), true
+	case "Mutation.createPost":
+		if e.ComplexityRoot.Mutation.CreatePost == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createPost_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreatePost(childComplexity, args["input"].(CreatePostInput)), true
+	case "Mutation.disableComments":
+		if e.ComplexityRoot.Mutation.DisableComments == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_disableComments_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DisableComments(childComplexity, args["input"].(DisableCommentsInput)), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -305,7 +351,11 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputCreateCommentInput,
+		ec.unmarshalInputCreatePostInput,
+		ec.unmarshalInputDisableCommentsInput,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -338,6 +388,21 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			}
 
 			return &response
+		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+			data := ec._Mutation(ctx, opCtx.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
 		}
 
 	default:
@@ -416,6 +481,30 @@ type CommentConnection {
 type Query {
   posts(first: Int!, after: String): PostConnection!
   post(id: ID!): Post
+}
+
+input CreatePostInput {
+  authorId: ID!
+  title: String!
+  body: String!
+}
+
+input CreateCommentInput {
+  postId: ID!
+  parentId: ID
+  authorId: ID!
+  body: String!
+}
+
+input DisableCommentsInput {
+  postId: ID!
+  requesterId: ID!
+}
+
+type Mutation {
+  createPost(input: CreatePostInput!): Post!
+  createComment(input: CreateCommentInput!): Comment!
+  disableComments(input: DisableCommentsInput!): Post!
 }
 `, BuiltIn: false},
 }
@@ -648,6 +737,48 @@ func (ec *executionContext) field_Comment_replies_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["after"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createComment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreateCommentInput, error) {
+			return ec.unmarshalNCreateCommentInput2githubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐCreateCommentInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createPost_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (CreatePostInput, error) {
+			return ec.unmarshalNCreatePostInput2githubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐCreatePostInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_disableComments_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (DisableCommentsInput, error) {
+			return ec.unmarshalNDisableCommentsInput2githubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐDisableCommentsInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -1059,6 +1190,138 @@ func (ec *executionContext) _CommentEdge_cursor(ctx context.Context, field graph
 }
 func (ec *executionContext) fieldContext_CommentEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CommentEdge", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Mutation_createPost(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createPost(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreatePost(ctx, fc.Args["input"].(CreatePostInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Post) graphql.Marshaler {
+			return ec.marshalNPost2ᚖgithubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐPost(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createPost(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Post(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createPost_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createComment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createComment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateComment(ctx, fc.Args["input"].(CreateCommentInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Comment) graphql.Marshaler {
+			return ec.marshalNComment2ᚖgithubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐComment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createComment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Comment(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createComment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_disableComments(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_disableComments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DisableComments(ctx, fc.Args["input"].(DisableCommentsInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *Post) graphql.Marshaler {
+			return ec.marshalNPost2ᚖgithubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐPost(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_disableComments(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Post(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_disableComments_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *PageInfo) (ret graphql.Marshaler) {
@@ -2631,6 +2894,138 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputCreateCommentInput(ctx context.Context, obj any) (CreateCommentInput, error) {
+	var it CreateCommentInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"postId", "parentId", "authorId", "body"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "postId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("postId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PostID = data
+		case "parentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentID = data
+		case "authorId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authorId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AuthorID = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreatePostInput(ctx context.Context, obj any) (CreatePostInput, error) {
+	var it CreatePostInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"authorId", "title", "body"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "authorId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authorId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AuthorID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "body":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Body = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputDisableCommentsInput(ctx context.Context, obj any) (DisableCommentsInput, error) {
+	var it DisableCommentsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"postId", "requesterId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "postId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("postId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PostID = data
+		case "requesterId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requesterId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RequesterID = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2797,6 +3192,68 @@ func (ec *executionContext) _CommentEdge(ctx context.Context, sel ast.SelectionS
 			}
 		case "cursor":
 			out.Values[i] = ec._CommentEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "createPost":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createPost(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createComment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createComment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "disableComments":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_disableComments(ctx, field)
+			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -3558,6 +4015,10 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalNComment2githubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐComment(ctx context.Context, sel ast.SelectionSet, v Comment) graphql.Marshaler {
+	return ec._Comment(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNComment2ᚖgithubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐComment(ctx context.Context, sel ast.SelectionSet, v *Comment) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -3608,6 +4069,21 @@ func (ec *executionContext) marshalNCommentEdge2ᚖgithubᚗcomᚋzmskvᚋfeed�
 	return ec._CommentEdge(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNCreateCommentInput2githubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐCreateCommentInput(ctx context.Context, v any) (CreateCommentInput, error) {
+	res, err := ec.unmarshalInputCreateCommentInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreatePostInput2githubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐCreatePostInput(ctx context.Context, v any) (CreatePostInput, error) {
+	res, err := ec.unmarshalInputCreatePostInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNDisableCommentsInput2githubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐDisableCommentsInput(ctx context.Context, v any) (DisableCommentsInput, error) {
+	res, err := ec.unmarshalInputDisableCommentsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -3648,6 +4124,10 @@ func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋzmskvᚋfeedᚑse
 		return graphql.Null
 	}
 	return ec._PageInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPost2githubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐPost(ctx context.Context, sel ast.SelectionSet, v Post) graphql.Marshaler {
+	return ec._Post(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNPost2ᚖgithubᚗcomᚋzmskvᚋfeedᚑserviceᚋinternalᚋpresentationᚋgraphqlᚋgeneratedᚐPost(ctx context.Context, sel ast.SelectionSet, v *Post) graphql.Marshaler {
@@ -3899,6 +4379,24 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalID(*v)
 	return res
 }
 

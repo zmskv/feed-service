@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-
 	domainComment "github.com/zmskv/feed-service/internal/domain/comment"
 	domainPost "github.com/zmskv/feed-service/internal/domain/post"
 	"github.com/zmskv/feed-service/internal/presentation/graphql/generated"
@@ -37,6 +36,69 @@ func (r *commentResolver) Replies(ctx context.Context, obj *generated.Comment, f
 		return nil, err
 	}
 	return buildCommentConnection(items, hasNext), nil
+}
+
+// CreatePost is the resolver for the createPost field.
+func (r *mutationResolver) CreatePost(ctx context.Context, input generated.CreatePostInput) (*generated.Post, error) {
+	authorID, err := uuid.Parse(input.AuthorID)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := r.posts.Create(ctx, authorID, input.Title, input.Body)
+	if err != nil {
+		return nil, err
+	}
+	return postToModel(p), nil
+}
+
+// CreateComment is the resolver for the createComment field.
+func (r *mutationResolver) CreateComment(ctx context.Context, input generated.CreateCommentInput) (*generated.Comment, error) {
+	postID, err := uuid.Parse(input.PostID)
+	if err != nil {
+		return nil, err
+	}
+	authorID, err := uuid.Parse(input.AuthorID)
+	if err != nil {
+		return nil, err
+	}
+
+	var parentID *uuid.UUID
+	if input.ParentID != nil {
+		id, err := uuid.Parse(*input.ParentID)
+		if err != nil {
+			return nil, err
+		}
+		parentID = &id
+	}
+
+	c, err := r.comments.Create(ctx, postID, parentID, authorID, input.Body)
+	if err != nil {
+		return nil, err
+	}
+	return commentToModel(c), nil
+}
+
+// DisableComments is the resolver for the disableComments field.
+func (r *mutationResolver) DisableComments(ctx context.Context, input generated.DisableCommentsInput) (*generated.Post, error) {
+	postID, err := uuid.Parse(input.PostID)
+	if err != nil {
+		return nil, err
+	}
+	requesterID, err := uuid.Parse(input.RequesterID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := r.posts.DisableComments(ctx, postID, requesterID); err != nil {
+		return nil, err
+	}
+
+	p, err := r.posts.Get(ctx, postID)
+	if err != nil {
+		return nil, err
+	}
+	return postToModel(p), nil
 }
 
 // Comments is the resolver for the comments field.
@@ -91,6 +153,9 @@ func (r *queryResolver) Post(ctx context.Context, id string) (*generated.Post, e
 // Comment returns generated.CommentResolver implementation.
 func (r *Resolver) Comment() generated.CommentResolver { return &commentResolver{r} }
 
+// Mutation returns generated.MutationResolver implementation.
+func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
+
 // Post returns generated.PostResolver implementation.
 func (r *Resolver) Post() generated.PostResolver { return &postResolver{r} }
 
@@ -98,7 +163,8 @@ func (r *Resolver) Post() generated.PostResolver { return &postResolver{r} }
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
 type (
-	commentResolver struct{ *Resolver }
-	postResolver    struct{ *Resolver }
-	queryResolver   struct{ *Resolver }
+	commentResolver  struct{ *Resolver }
+	mutationResolver struct{ *Resolver }
+	postResolver     struct{ *Resolver }
+	queryResolver    struct{ *Resolver }
 )

@@ -25,6 +25,27 @@ type CommentEdge struct {
 	Cursor string   `json:"cursor"`
 }
 
+type CreateCommentInput struct {
+	PostID   string  `json:"postId"`
+	ParentID *string `json:"parentId,omitempty"`
+	AuthorID string  `json:"authorId"`
+	Body     string  `json:"body"`
+}
+
+type CreatePostInput struct {
+	AuthorID string `json:"authorId"`
+	Title    string `json:"title"`
+	Body     string `json:"body"`
+}
+
+type DisableCommentsInput struct {
+	PostID      string `json:"postId"`
+	RequesterID string `json:"requesterId"`
+}
+
+type Mutation struct {
+}
+
 type PageInfo struct {
 	HasNextPage bool    `json:"hasNextPage"`
 	EndCursor   *string `json:"endCursor,omitempty"`

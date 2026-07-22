@@ -35,6 +35,7 @@ func main() {
 	resolver := graphql.NewResolver(container.PostService, container.CommentService)
 	schema := generated.NewExecutableSchema(generated.Config{Resolvers: resolver})
 	gqlSrv := handler.NewDefaultServer(schema)
+	gqlSrv.SetErrorPresenter(graphql.ErrorPresenter)
 
 	r := gin.Default()
 	r.GET("/ping", func(c *gin.Context) {
