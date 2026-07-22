@@ -1,0 +1,52 @@
+scalar Time
+
+directive @goField(forceResolver: Boolean, name: String) on FIELD_DEFINITION
+
+type Post {
+  id: ID!
+  authorId: ID!
+  title: String!
+  body: String!
+  commentsDisabled: Boolean!
+  createdAt: Time!
+  comments(first: Int!, after: String): CommentConnection! @goField(forceResolver: true)
+}
+
+type Comment {
+  id: ID!
+  postId: ID!
+  authorId: ID!
+  body: String!
+  createdAt: Time!
+  replies(first: Int!, after: String): CommentConnection! @goField(forceResolver: true)
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+type PostEdge {
+  node: Post!
+  cursor: String!
+}
+
+type PostConnection {
+  edges: [PostEdge!]!
+  pageInfo: PageInfo!
+}
+
+type CommentEdge {
+  node: Comment!
+  cursor: String!
+}
+
+type CommentConnection {
+  edges: [CommentEdge!]!
+  pageInfo: PageInfo!
+}
+
+type Query {
+  posts(first: Int!, after: String): PostConnection!
+  post(id: ID!): Post
+}
