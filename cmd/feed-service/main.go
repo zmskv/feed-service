@@ -8,15 +8,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"github.com/zmskv/feed-service/internal/config"
 	"github.com/zmskv/feed-service/internal/di"
 	"github.com/zmskv/feed-service/internal/presentation/graphql"
-	"github.com/zmskv/feed-service/internal/presentation/graphql/generated"
 	"github.com/zmskv/feed-service/logger"
 )
 
@@ -32,21 +28,9 @@ func main() {
 	}
 	defer container.Close()
 
-	resolver := graphql.NewResolver(container.PostService, container.CommentService)
-	schema := generated.NewExecutableSchema(generated.Config{Resolvers: resolver})
-	gqlSrv := handler.NewDefaultServer(schema)
-	gqlSrv.SetErrorPresenter(graphql.ErrorPresenter)
-
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-	r.POST("/query", gin.WrapH(gqlSrv))
-	r.GET("/playground", gin.WrapH(playground.Handler("GraphQL", "/query")))
-
 	srv := &http.Server{
 		Addr:    cfg.Addr,
-		Handler: r,
+		Handler: graphql.NewRouter(container.PostService, container.CommentService, container.Broadcaster),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

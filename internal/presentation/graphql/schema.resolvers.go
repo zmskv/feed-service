@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
-	domainComment "github.com/zmskv/feed-service/internal/domain/comment"
 	domainPost "github.com/zmskv/feed-service/internal/domain/post"
 	"github.com/zmskv/feed-service/internal/presentation/graphql/generated"
 )
@@ -21,21 +20,16 @@ func (r *commentResolver) Replies(ctx context.Context, obj *generated.Comment, f
 	if err != nil {
 		return nil, err
 	}
-	postID, err := uuid.Parse(obj.PostID)
-	if err != nil {
-		return nil, err
-	}
 	cursor, err := decodeCursor(after)
 	if err != nil {
 		return nil, err
 	}
 
-	parent := &domainComment.Comment{ID: id, PostID: postID}
-	items, hasNext, err := r.comments.ListReplies(ctx, parent, first, cursor)
+	page, err := loadersFrom(ctx).repliesLoader(first, cursor).Load(ctx, id)()
 	if err != nil {
 		return nil, err
 	}
-	return buildCommentConnection(items, hasNext), nil
+	return buildCommentConnection(page.Items, page.HasNext), nil
 }
 
 // CreatePost is the resolver for the createPost field.
@@ -112,11 +106,11 @@ func (r *postResolver) Comments(ctx context.Context, obj *generated.Post, first 
 		return nil, err
 	}
 
-	items, hasNext, err := r.comments.ListByPost(ctx, postID, first, cursor)
+	page, err := loadersFrom(ctx).topLevelLoader(first, cursor).Load(ctx, postID)()
 	if err != nil {
 		return nil, err
 	}
-	return buildCommentConnection(items, hasNext), nil
+	return buildCommentConnection(page.Items, page.HasNext), nil
 }
 
 // Posts is the resolver for the posts field.
@@ -150,6 +144,39 @@ func (r *queryResolver) Post(ctx context.Context, id string) (*generated.Post, e
 	return postToModel(p), nil
 }
 
+// CommentAdded is the resolver for the commentAdded field.
+func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) (<-chan *generated.Comment, error) {
+	id, err := uuid.Parse(postID)
+	if err != nil {
+		return nil, err
+	}
+
+	comments, unsubscribe := r.sub.Subscribe(id)
+	out := make(chan *generated.Comment)
+
+	go func() {
+		defer close(out)
+		defer unsubscribe()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case c, ok := <-comments:
+				if !ok {
+					return
+				}
+				select {
+				case out <- commentToModel(c):
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return out, nil
+}
+
 // Comment returns generated.CommentResolver implementation.
 func (r *Resolver) Comment() generated.CommentResolver { return &commentResolver{r} }
 
@@ -162,9 +189,13 @@ func (r *Resolver) Post() generated.PostResolver { return &postResolver{r} }
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+// Subscription returns generated.SubscriptionResolver implementation.
+func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subscriptionResolver{r} }
+
 type (
-	commentResolver  struct{ *Resolver }
-	mutationResolver struct{ *Resolver }
-	postResolver     struct{ *Resolver }
-	queryResolver    struct{ *Resolver }
+	commentResolver      struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	postResolver         struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
 )

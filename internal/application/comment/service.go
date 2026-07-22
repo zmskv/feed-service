@@ -10,8 +10,6 @@ import (
 	"github.com/zmskv/feed-service/internal/pagination"
 )
 
-//go:generate go run go.uber.org/mock/mockgen -source=service.go -destination=mock_test.go -package=comment_test
-
 type PostRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*post.Post, error)
 }
@@ -20,10 +18,17 @@ type Repository interface {
 	Save(ctx context.Context, c *comment.Comment) error
 	FindByID(ctx context.Context, id uuid.UUID) (*comment.Comment, error)
 	ListByParent(ctx context.Context, postID uuid.UUID, parentID *uuid.UUID, first int, after *pagination.Cursor) ([]*comment.Comment, bool, error)
+	ListTopLevelByPosts(ctx context.Context, postIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*Page, error)
+	ListRepliesByParents(ctx context.Context, parentIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*Page, error)
 }
 
 type Publisher interface {
 	Publish(c *comment.Comment)
+}
+
+type Page struct {
+	Items   []*comment.Comment
+	HasNext bool
 }
 
 type Service struct {
@@ -75,4 +80,12 @@ func (s *Service) ListByPost(ctx context.Context, postID uuid.UUID, first int, a
 
 func (s *Service) ListReplies(ctx context.Context, parent *comment.Comment, first int, after *pagination.Cursor) ([]*comment.Comment, bool, error) {
 	return s.repo.ListByParent(ctx, parent.PostID, &parent.ID, pagination.NormalizeFirst(first), after)
+}
+
+func (s *Service) ListByPostsBatch(ctx context.Context, postIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*Page, error) {
+	return s.repo.ListTopLevelByPosts(ctx, postIDs, pagination.NormalizeFirst(first), after)
+}
+
+func (s *Service) ListRepliesByParentsBatch(ctx context.Context, parentIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*Page, error) {
+	return s.repo.ListRepliesByParents(ctx, parentIDs, pagination.NormalizeFirst(first), after)
 }

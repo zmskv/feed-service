@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	appComment "github.com/zmskv/feed-service/internal/application/comment"
 	"github.com/zmskv/feed-service/internal/domain/comment"
 	"github.com/zmskv/feed-service/internal/pagination"
 )
@@ -55,6 +56,61 @@ func (r *Comment) ListByParent(_ context.Context, postID uuid.UUID, parentID *uu
 		matched = append(matched, c)
 	}
 
+	items, hasNext := paginateComments(matched, first, after)
+	return items, hasNext, nil
+}
+
+func (r *Comment) ListTopLevelByPosts(_ context.Context, postIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*appComment.Page, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	want := make(map[uuid.UUID]bool, len(postIDs))
+	for _, id := range postIDs {
+		want[id] = true
+	}
+
+	grouped := make(map[uuid.UUID][]*comment.Comment)
+	for _, c := range r.comments {
+		if c.ParentID != nil || !want[c.PostID] {
+			continue
+		}
+		grouped[c.PostID] = append(grouped[c.PostID], c)
+	}
+
+	out := make(map[uuid.UUID]*appComment.Page, len(postIDs))
+	for _, postID := range postIDs {
+		items, hasNext := paginateComments(grouped[postID], first, after)
+		out[postID] = &appComment.Page{Items: items, HasNext: hasNext}
+	}
+	return out, nil
+}
+
+func (r *Comment) ListRepliesByParents(_ context.Context, parentIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*appComment.Page, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	want := make(map[uuid.UUID]bool, len(parentIDs))
+	for _, id := range parentIDs {
+		want[id] = true
+	}
+
+	grouped := make(map[uuid.UUID][]*comment.Comment)
+	for _, c := range r.comments {
+		if c.ParentID == nil || !want[*c.ParentID] {
+			continue
+		}
+		grouped[*c.ParentID] = append(grouped[*c.ParentID], c)
+	}
+
+	out := make(map[uuid.UUID]*appComment.Page, len(parentIDs))
+	for _, parentID := range parentIDs {
+		items, hasNext := paginateComments(grouped[parentID], first, after)
+		out[parentID] = &appComment.Page{Items: items, HasNext: hasNext}
+	}
+	return out, nil
+}
+
+func paginateComments(matched []*comment.Comment, first int, after *pagination.Cursor) ([]*comment.Comment, bool) {
 	sort.Slice(matched, func(i, j int) bool {
 		if matched[i].CreatedAt.Equal(matched[j].CreatedAt) {
 			return matched[i].ID.String() < matched[j].ID.String()
@@ -79,7 +135,7 @@ func (r *Comment) ListByParent(_ context.Context, postID uuid.UUID, parentID *uu
 		end = len(matched)
 	}
 
-	out := make([]*comment.Comment, end-start)
+	out := make([]*comment.Comment, len(matched[start:end]))
 	copy(out, matched[start:end])
-	return out, hasNext, nil
+	return out, hasNext
 }

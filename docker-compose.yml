@@ -4,9 +4,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      STORAGE: postgres
-      DSN: postgres://feed:feed@postgres:5432/feed?sslmode=disable
-      ADDR: ":8080"
+      STORAGE: ${STORAGE:-postgres}
+      ADDR: ${ADDR:-:8080}
+      DSN: postgres://${PGUSER:-feed}:${PGPASSWORD:-feed}@postgres:5432/${PGDATABASE:-feed}?sslmode=${PGSSLMODE:-disable}
     depends_on:
       postgres:
         condition: service_healthy
@@ -19,7 +19,7 @@ services:
       - ./migrations:/migrations
     command:
       - "-path=/migrations"
-      - "-database=postgres://feed:feed@postgres:5432/feed?sslmode=disable"
+      - "-database=postgres://${PGUSER:-feed}:${PGPASSWORD:-feed}@postgres:5432/${PGDATABASE:-feed}?sslmode=${PGSSLMODE:-disable}"
       - "up"
     depends_on:
       postgres:
@@ -28,13 +28,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: feed
-      POSTGRES_PASSWORD: feed
-      POSTGRES_DB: feed
+      POSTGRES_USER: ${PGUSER:-feed}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-feed}
+      POSTGRES_DB: ${PGDATABASE:-feed}
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U feed"]
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-feed}"]
       interval: 5s
       timeout: 3s
       retries: 5

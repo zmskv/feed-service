@@ -14,7 +14,8 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
-	comment "github.com/zmskv/feed-service/internal/domain/comment"
+	comment "github.com/zmskv/feed-service/internal/application/comment"
+	comment0 "github.com/zmskv/feed-service/internal/domain/comment"
 	post "github.com/zmskv/feed-service/internal/domain/post"
 	pagination "github.com/zmskv/feed-service/internal/pagination"
 	gomock "go.uber.org/mock/gomock"
@@ -84,10 +85,10 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // FindByID mocks base method.
-func (m *MockRepository) FindByID(ctx context.Context, id uuid.UUID) (*comment.Comment, error) {
+func (m *MockRepository) FindByID(ctx context.Context, id uuid.UUID) (*comment0.Comment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindByID", ctx, id)
-	ret0, _ := ret[0].(*comment.Comment)
+	ret0, _ := ret[0].(*comment0.Comment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -99,10 +100,10 @@ func (mr *MockRepositoryMockRecorder) FindByID(ctx, id any) *gomock.Call {
 }
 
 // ListByParent mocks base method.
-func (m *MockRepository) ListByParent(ctx context.Context, postID uuid.UUID, parentID *uuid.UUID, first int, after *pagination.Cursor) ([]*comment.Comment, bool, error) {
+func (m *MockRepository) ListByParent(ctx context.Context, postID uuid.UUID, parentID *uuid.UUID, first int, after *pagination.Cursor) ([]*comment0.Comment, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListByParent", ctx, postID, parentID, first, after)
-	ret0, _ := ret[0].([]*comment.Comment)
+	ret0, _ := ret[0].([]*comment0.Comment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -114,8 +115,38 @@ func (mr *MockRepositoryMockRecorder) ListByParent(ctx, postID, parentID, first,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByParent", reflect.TypeOf((*MockRepository)(nil).ListByParent), ctx, postID, parentID, first, after)
 }
 
+// ListRepliesByParents mocks base method.
+func (m *MockRepository) ListRepliesByParents(ctx context.Context, parentIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*comment.Page, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListRepliesByParents", ctx, parentIDs, first, after)
+	ret0, _ := ret[0].(map[uuid.UUID]*comment.Page)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListRepliesByParents indicates an expected call of ListRepliesByParents.
+func (mr *MockRepositoryMockRecorder) ListRepliesByParents(ctx, parentIDs, first, after any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRepliesByParents", reflect.TypeOf((*MockRepository)(nil).ListRepliesByParents), ctx, parentIDs, first, after)
+}
+
+// ListTopLevelByPosts mocks base method.
+func (m *MockRepository) ListTopLevelByPosts(ctx context.Context, postIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*comment.Page, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTopLevelByPosts", ctx, postIDs, first, after)
+	ret0, _ := ret[0].(map[uuid.UUID]*comment.Page)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTopLevelByPosts indicates an expected call of ListTopLevelByPosts.
+func (mr *MockRepositoryMockRecorder) ListTopLevelByPosts(ctx, postIDs, first, after any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTopLevelByPosts", reflect.TypeOf((*MockRepository)(nil).ListTopLevelByPosts), ctx, postIDs, first, after)
+}
+
 // Save mocks base method.
-func (m *MockRepository) Save(ctx context.Context, c *comment.Comment) error {
+func (m *MockRepository) Save(ctx context.Context, c *comment0.Comment) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Save", ctx, c)
 	ret0, _ := ret[0].(error)
@@ -153,7 +184,7 @@ func (m *MockPublisher) EXPECT() *MockPublisherMockRecorder {
 }
 
 // Publish mocks base method.
-func (m *MockPublisher) Publish(c *comment.Comment) {
+func (m *MockPublisher) Publish(c *comment0.Comment) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Publish", c)
 }

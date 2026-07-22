@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
+	appComment "github.com/zmskv/feed-service/internal/application/comment"
 	"github.com/zmskv/feed-service/internal/domain/comment"
 	"github.com/zmskv/feed-service/internal/pagination"
 )
@@ -105,4 +106,99 @@ func (r *Comment) ListByParent(ctx context.Context, postID uuid.UUID, parentID *
 		out[i] = row.toDomain()
 	}
 	return out, hasNext, nil
+}
+
+type rankedCommentRow struct {
+	commentRow
+	Rn int64 `db:"rn"`
+}
+
+func groupRankedRows[K comparable](rows []rankedCommentRow, keys []K, keyOf func(commentRow) K, first int) map[K]*appComment.Page {
+	grouped := make(map[K][]rankedCommentRow, len(keys))
+	for _, row := range rows {
+		k := keyOf(row.commentRow)
+		grouped[k] = append(grouped[k], row)
+	}
+
+	out := make(map[K]*appComment.Page, len(keys))
+	for _, k := range keys {
+		group := grouped[k]
+		hasNext := len(group) > first
+		if hasNext {
+			group = group[:first]
+		}
+		items := make([]*comment.Comment, len(group))
+		for i, row := range group {
+			items[i] = row.commentRow.toDomain()
+		}
+		out[k] = &appComment.Page{Items: items, HasNext: hasNext}
+	}
+	return out
+}
+
+func (r *Comment) ListTopLevelByPosts(ctx context.Context, postIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*appComment.Page, error) {
+	if len(postIDs) == 0 {
+		return map[uuid.UUID]*appComment.Page{}, nil
+	}
+
+	var rows []rankedCommentRow
+	var err error
+	if after == nil {
+		err = r.db.SelectContext(ctx, &rows, `
+			WITH ranked AS (
+				SELECT *, ROW_NUMBER() OVER (PARTITION BY post_id ORDER BY created_at, id) AS rn
+				FROM comments
+				WHERE post_id = ANY($1) AND parent_id IS NULL
+			)
+			SELECT * FROM ranked WHERE rn <= $2`, postIDs, first+1)
+	} else {
+		err = r.db.SelectContext(ctx, &rows, `
+			WITH ranked AS (
+				SELECT *, ROW_NUMBER() OVER (PARTITION BY post_id ORDER BY created_at, id) AS rn
+				FROM comments
+				WHERE post_id = ANY($1) AND parent_id IS NULL AND (created_at, id) > ($2, $3)
+			)
+			SELECT * FROM ranked WHERE rn <= $4`, postIDs, after.CreatedAt, after.ID, first+1)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return groupRankedRows(rows, postIDs, func(c commentRow) uuid.UUID { return c.PostID }, first), nil
+}
+
+func (r *Comment) ListRepliesByParents(ctx context.Context, parentIDs []uuid.UUID, first int, after *pagination.Cursor) (map[uuid.UUID]*appComment.Page, error) {
+	if len(parentIDs) == 0 {
+		return map[uuid.UUID]*appComment.Page{}, nil
+	}
+
+	var rows []rankedCommentRow
+	var err error
+	if after == nil {
+		err = r.db.SelectContext(ctx, &rows, `
+			WITH ranked AS (
+				SELECT *, ROW_NUMBER() OVER (PARTITION BY parent_id ORDER BY created_at, id) AS rn
+				FROM comments
+				WHERE parent_id = ANY($1)
+			)
+			SELECT * FROM ranked WHERE rn <= $2`, parentIDs, first+1)
+	} else {
+		err = r.db.SelectContext(ctx, &rows, `
+			WITH ranked AS (
+				SELECT *, ROW_NUMBER() OVER (PARTITION BY parent_id ORDER BY created_at, id) AS rn
+				FROM comments
+				WHERE parent_id = ANY($1) AND (created_at, id) > ($2, $3)
+			)
+			SELECT * FROM ranked WHERE rn <= $4`, parentIDs, after.CreatedAt, after.ID, first+1)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return groupRankedRows(rows, parentIDs, func(c commentRow) uuid.UUID {
+		if c.ParentID == nil {
+			return uuid.Nil
+		}
+		return *c.ParentID
+	}, first), nil
 }

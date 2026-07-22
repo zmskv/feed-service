@@ -10,7 +10,7 @@ import (
 	"github.com/zmskv/feed-service/internal/application/comment"
 	"github.com/zmskv/feed-service/internal/application/post"
 	"github.com/zmskv/feed-service/internal/config"
-	domainComment "github.com/zmskv/feed-service/internal/domain/comment"
+	"github.com/zmskv/feed-service/internal/infrastructure/pubsub"
 	"github.com/zmskv/feed-service/internal/infrastructure/repository/memory"
 	"github.com/zmskv/feed-service/internal/infrastructure/repository/postgres"
 )
@@ -18,6 +18,7 @@ import (
 type Container struct {
 	PostService    *post.Service
 	CommentService *comment.Service
+	Broadcaster    *pubsub.Broadcaster
 	db             *sqlx.DB
 }
 
@@ -50,15 +51,12 @@ func Build(cfg config.Config) (*Container, error) {
 		return nil, fmt.Errorf("di: unknown storage %q", cfg.Storage)
 	}
 
-	pub := noopPublisher{}
+	broadcaster := pubsub.NewBroadcaster()
 
 	return &Container{
 		PostService:    post.NewService(postRepo),
-		CommentService: comment.NewService(commentRepo, postRepo, pub),
+		CommentService: comment.NewService(commentRepo, postRepo, broadcaster),
+		Broadcaster:    broadcaster,
 		db:             db,
 	}, nil
 }
-
-type noopPublisher struct{}
-
-func (noopPublisher) Publish(*domainComment.Comment) {}

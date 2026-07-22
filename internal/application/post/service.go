@@ -9,8 +9,6 @@ import (
 	"github.com/zmskv/feed-service/internal/pagination"
 )
 
-//go:generate go run go.uber.org/mock/mockgen -source=service.go -destination=mock_test.go -package=post_test
-
 type Repository interface {
 	Save(ctx context.Context, p *post.Post) error
 	FindByID(ctx context.Context, id uuid.UUID) (*post.Post, error)

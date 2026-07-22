@@ -73,3 +73,6 @@ type PostEdge struct {
 
 type Query struct {
 }
+
+type Subscription struct {
+}

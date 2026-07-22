@@ -5,7 +5,7 @@ import (
 	"github.com/zmskv/feed-service/internal/application/post"
 )
 
-// compile assertion 
+// compile assertion
 var (
 	_ post.Repository        = (*Post)(nil)
 	_ comment.PostRepository = (*Post)(nil)

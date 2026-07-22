@@ -7,8 +7,8 @@ import (
 	gql "github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
-	appcomment "github.com/zmskv/feed-service/internal/application/comment"
-	apppost "github.com/zmskv/feed-service/internal/application/post"
+	appComment "github.com/zmskv/feed-service/internal/application/comment"
+	appPost "github.com/zmskv/feed-service/internal/application/post"
 	domainComment "github.com/zmskv/feed-service/internal/domain/comment"
 	domainPost "github.com/zmskv/feed-service/internal/domain/post"
 )
@@ -21,11 +21,11 @@ var errorCodes = []struct {
 	{domainPost.ErrEmptyBody, "EMPTY_BODY"},
 	{domainPost.ErrCommentsDisabled, "COMMENTS_DISABLED"},
 	{domainPost.ErrNotFound, "POST_NOT_FOUND"},
-	{apppost.ErrForbidden, "FORBIDDEN"},
+	{appPost.ErrForbidden, "FORBIDDEN"},
 	{domainComment.ErrEmptyBody, "COMMENT_EMPTY_BODY"},
 	{domainComment.ErrBodyTooLong, "BODY_TOO_LONG"},
 	{domainComment.ErrNotFound, "COMMENT_NOT_FOUND"},
-	{appcomment.ErrParentMismatch, "PARENT_MISMATCH"},
+	{appComment.ErrParentMismatch, "PARENT_MISMATCH"},
 }
 
 func ErrorPresenter(ctx context.Context, err error) *gqlerror.Error {

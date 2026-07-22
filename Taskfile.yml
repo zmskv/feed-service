@@ -7,29 +7,20 @@ vars:
 tasks:
   run:
     cmds:
-      - go run ./cmd/server --storage={{.STORAGE}}
-
-  run:debug:
-    cmds:
-      - go run -tags pprof ./cmd/server --storage={{.STORAGE}}
+      - go run ./cmd/feed-service --storage={{.STORAGE}}
 
   build:
     cmds:
-      - go build -o bin/server ./cmd/server
-
-  build:debug:
-    desc: билд с pprof
-    cmds:
-      - go build -tags pprof -o bin/server-debug ./cmd/server
+      - go build -o bin/server ./cmd/feed-service
 
   test:
     cmds:
       - go test ./... -race -cover
 
   test:coverage:
-    desc: тесты + отчёт покрытия + порог
+    desc: тесты + отчёт покрытия + порог (без gqlgen-boilerplate в generated/)
     cmds:
-      - go test ./... -race -coverprofile=coverage.out
+      - go test $(go list ./... | grep -v /generated) -race -coverprofile=coverage.out
       - go tool cover -func=coverage.out
       - |
         pct=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
@@ -57,11 +48,3 @@ tasks:
   docker-up:
     cmds:
       - docker-compose up --build
-
-  profile:cpu:
-    cmds:
-      - go tool pprof -http=:8081 http://localhost:6060/debug/pprof/profile?seconds=30
-
-  profile:heap:
-    cmds:
-      - go tool pprof -http=:8081 http://localhost:6060/debug/pprof/heap
