@@ -6,46 +6,18 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"go.uber.org/mock/gomock"
 
 	"github.com/zmskv/feed-service/internal/application/post"
 	domainPost "github.com/zmskv/feed-service/internal/domain/post"
-	"github.com/zmskv/feed-service/internal/pagination"
 )
 
-type fakeRepo struct {
-	posts map[uuid.UUID]*domainPost.Post
-}
-
-func newFakeRepo() *fakeRepo {
-	return &fakeRepo{posts: make(map[uuid.UUID]*domainPost.Post)}
-}
-
-func (r *fakeRepo) Save(_ context.Context, p *domainPost.Post) error {
-	r.posts[p.ID] = p
-	return nil
-}
-
-func (r *fakeRepo) FindByID(_ context.Context, id uuid.UUID) (*domainPost.Post, error) {
-	p, ok := r.posts[id]
-	if !ok {
-		return nil, domainPost.ErrNotFound
-	}
-	return p, nil
-}
-
-func (r *fakeRepo) List(_ context.Context, first int, _ *pagination.Cursor) ([]*domainPost.Post, bool, error) {
-	var out []*domainPost.Post
-	for _, p := range r.posts {
-		out = append(out, p)
-	}
-	if len(out) > first {
-		return out[:first], true, nil
-	}
-	return out, false, nil
-}
-
 func TestService_Create(t *testing.T) {
-	svc := post.NewService(newFakeRepo())
+	ctrl := gomock.NewController(t)
+	repo := NewMockRepository(ctrl)
+	svc := post.NewService(repo)
+
+	repo.EXPECT().Save(gomock.Any(), gomock.Any()).Return(nil)
 
 	p, err := svc.Create(context.Background(), uuid.New(), "title", "body")
 	if err != nil {
@@ -61,39 +33,52 @@ func TestService_Create(t *testing.T) {
 }
 
 func TestService_Get_NotFound(t *testing.T) {
-	svc := post.NewService(newFakeRepo())
+	ctrl := gomock.NewController(t)
+	repo := NewMockRepository(ctrl)
+	svc := post.NewService(repo)
 
-	if _, err := svc.Get(context.Background(), uuid.New()); !errors.Is(err, domainPost.ErrNotFound) {
+	id := uuid.New()
+	repo.EXPECT().FindByID(gomock.Any(), id).Return(nil, domainPost.ErrNotFound)
+
+	if _, err := svc.Get(context.Background(), id); !errors.Is(err, domainPost.ErrNotFound) {
 		t.Fatalf("Get() err = %v, want %v", err, domainPost.ErrNotFound)
 	}
 }
 
-func TestService_DisableComments(t *testing.T) {
-	repo := newFakeRepo()
+func TestService_DisableComments_ForbiddenForNonAuthor(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := NewMockRepository(ctrl)
 	svc := post.NewService(repo)
-	authorID := uuid.New()
 
-	p, err := svc.Create(context.Background(), authorID, "title", "body")
+	authorID := uuid.New()
+	p, err := domainPost.New(authorID, "title", "body")
 	if err != nil {
 		t.Fatal(err)
 	}
+	repo.EXPECT().FindByID(gomock.Any(), p.ID).Return(p, nil)
 
-	t.Run("forbidden for non-author", func(t *testing.T) {
-		if err := svc.DisableComments(context.Background(), p.ID, uuid.New()); !errors.Is(err, post.ErrForbidden) {
-			t.Fatalf("DisableComments() err = %v, want %v", err, post.ErrForbidden)
-		}
-	})
+	if err := svc.DisableComments(context.Background(), p.ID, uuid.New()); !errors.Is(err, post.ErrForbidden) {
+		t.Fatalf("DisableComments() err = %v, want %v", err, post.ErrForbidden)
+	}
+}
 
-	t.Run("succeeds for author", func(t *testing.T) {
-		if err := svc.DisableComments(context.Background(), p.ID, authorID); err != nil {
-			t.Fatalf("DisableComments() error = %v", err)
-		}
-		got, err := svc.Get(context.Background(), p.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !got.CommentsDisabled {
-			t.Fatal("expected CommentsDisabled = true")
-		}
-	})
+func TestService_DisableComments_SucceedsForAuthor(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := NewMockRepository(ctrl)
+	svc := post.NewService(repo)
+
+	authorID := uuid.New()
+	p, err := domainPost.New(authorID, "title", "body")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.EXPECT().FindByID(gomock.Any(), p.ID).Return(p, nil)
+	repo.EXPECT().Save(gomock.Any(), p).Return(nil)
+
+	if err := svc.DisableComments(context.Background(), p.ID, authorID); err != nil {
+		t.Fatalf("DisableComments() error = %v", err)
+	}
+	if !p.CommentsDisabled {
+		t.Fatal("expected CommentsDisabled = true")
+	}
 }

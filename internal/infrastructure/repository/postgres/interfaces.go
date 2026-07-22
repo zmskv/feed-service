@@ -1,11 +1,11 @@
-package memory
+package postgres
 
 import (
 	"github.com/zmskv/feed-service/internal/application/comment"
 	"github.com/zmskv/feed-service/internal/application/post"
 )
 
-// compile assertion
+// compile assertion 
 var (
 	_ post.Repository        = (*Post)(nil)
 	_ comment.PostRepository = (*Post)(nil)
