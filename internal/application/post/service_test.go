@@ -7,34 +7,34 @@ import (
 
 	"github.com/google/uuid"
 
-	apppost "github.com/zmskv/feed-service/internal/application/post"
-	domainpost "github.com/zmskv/feed-service/internal/domain/post"
+	"github.com/zmskv/feed-service/internal/application/post"
+	domainPost "github.com/zmskv/feed-service/internal/domain/post"
 	"github.com/zmskv/feed-service/internal/pagination"
 )
 
 type fakeRepo struct {
-	posts map[uuid.UUID]*domainpost.Post
+	posts map[uuid.UUID]*domainPost.Post
 }
 
 func newFakeRepo() *fakeRepo {
-	return &fakeRepo{posts: make(map[uuid.UUID]*domainpost.Post)}
+	return &fakeRepo{posts: make(map[uuid.UUID]*domainPost.Post)}
 }
 
-func (r *fakeRepo) Save(_ context.Context, p *domainpost.Post) error {
+func (r *fakeRepo) Save(_ context.Context, p *domainPost.Post) error {
 	r.posts[p.ID] = p
 	return nil
 }
 
-func (r *fakeRepo) FindByID(_ context.Context, id uuid.UUID) (*domainpost.Post, error) {
+func (r *fakeRepo) FindByID(_ context.Context, id uuid.UUID) (*domainPost.Post, error) {
 	p, ok := r.posts[id]
 	if !ok {
-		return nil, domainpost.ErrNotFound
+		return nil, domainPost.ErrNotFound
 	}
 	return p, nil
 }
 
-func (r *fakeRepo) List(_ context.Context, first int, _ *pagination.Cursor) ([]*domainpost.Post, bool, error) {
-	var out []*domainpost.Post
+func (r *fakeRepo) List(_ context.Context, first int, _ *pagination.Cursor) ([]*domainPost.Post, bool, error) {
+	var out []*domainPost.Post
 	for _, p := range r.posts {
 		out = append(out, p)
 	}
@@ -45,7 +45,7 @@ func (r *fakeRepo) List(_ context.Context, first int, _ *pagination.Cursor) ([]*
 }
 
 func TestService_Create(t *testing.T) {
-	svc := apppost.NewService(newFakeRepo())
+	svc := post.NewService(newFakeRepo())
 
 	p, err := svc.Create(context.Background(), uuid.New(), "title", "body")
 	if err != nil {
@@ -55,22 +55,22 @@ func TestService_Create(t *testing.T) {
 		t.Fatalf("Title = %q, want %q", p.Title, "title")
 	}
 
-	if _, err := svc.Create(context.Background(), uuid.New(), "", "body"); !errors.Is(err, domainpost.ErrEmptyTitle) {
-		t.Fatalf("Create() with empty title: err = %v, want %v", err, domainpost.ErrEmptyTitle)
+	if _, err := svc.Create(context.Background(), uuid.New(), "", "body"); !errors.Is(err, domainPost.ErrEmptyTitle) {
+		t.Fatalf("Create() with empty title: err = %v, want %v", err, domainPost.ErrEmptyTitle)
 	}
 }
 
 func TestService_Get_NotFound(t *testing.T) {
-	svc := apppost.NewService(newFakeRepo())
+	svc := post.NewService(newFakeRepo())
 
-	if _, err := svc.Get(context.Background(), uuid.New()); !errors.Is(err, domainpost.ErrNotFound) {
-		t.Fatalf("Get() err = %v, want %v", err, domainpost.ErrNotFound)
+	if _, err := svc.Get(context.Background(), uuid.New()); !errors.Is(err, domainPost.ErrNotFound) {
+		t.Fatalf("Get() err = %v, want %v", err, domainPost.ErrNotFound)
 	}
 }
 
 func TestService_DisableComments(t *testing.T) {
 	repo := newFakeRepo()
-	svc := apppost.NewService(repo)
+	svc := post.NewService(repo)
 	authorID := uuid.New()
 
 	p, err := svc.Create(context.Background(), authorID, "title", "body")
@@ -79,8 +79,8 @@ func TestService_DisableComments(t *testing.T) {
 	}
 
 	t.Run("forbidden for non-author", func(t *testing.T) {
-		if err := svc.DisableComments(context.Background(), p.ID, uuid.New()); !errors.Is(err, apppost.ErrForbidden) {
-			t.Fatalf("DisableComments() err = %v, want %v", err, apppost.ErrForbidden)
+		if err := svc.DisableComments(context.Background(), p.ID, uuid.New()); !errors.Is(err, post.ErrForbidden) {
+			t.Fatalf("DisableComments() err = %v, want %v", err, post.ErrForbidden)
 		}
 	})
 

@@ -7,47 +7,47 @@ import (
 
 	"github.com/google/uuid"
 
-	appcomment "github.com/zmskv/feed-service/internal/application/comment"
-	domaincomment "github.com/zmskv/feed-service/internal/domain/comment"
-	domainpost "github.com/zmskv/feed-service/internal/domain/post"
+	"github.com/zmskv/feed-service/internal/application/comment"
+	domainComment "github.com/zmskv/feed-service/internal/domain/comment"
+	domainPost "github.com/zmskv/feed-service/internal/domain/post"
 	"github.com/zmskv/feed-service/internal/pagination"
 )
 
 type fakePostRepo struct {
-	posts map[uuid.UUID]*domainpost.Post
+	posts map[uuid.UUID]*domainPost.Post
 }
 
-func (r *fakePostRepo) FindByID(_ context.Context, id uuid.UUID) (*domainpost.Post, error) {
+func (r *fakePostRepo) FindByID(_ context.Context, id uuid.UUID) (*domainPost.Post, error) {
 	p, ok := r.posts[id]
 	if !ok {
-		return nil, domainpost.ErrNotFound
+		return nil, domainPost.ErrNotFound
 	}
 	return p, nil
 }
 
 type fakeCommentRepo struct {
-	comments map[uuid.UUID]*domaincomment.Comment
+	comments map[uuid.UUID]*domainComment.Comment
 }
 
 func newFakeCommentRepo() *fakeCommentRepo {
-	return &fakeCommentRepo{comments: make(map[uuid.UUID]*domaincomment.Comment)}
+	return &fakeCommentRepo{comments: make(map[uuid.UUID]*domainComment.Comment)}
 }
 
-func (r *fakeCommentRepo) Save(_ context.Context, c *domaincomment.Comment) error {
+func (r *fakeCommentRepo) Save(_ context.Context, c *domainComment.Comment) error {
 	r.comments[c.ID] = c
 	return nil
 }
 
-func (r *fakeCommentRepo) FindByID(_ context.Context, id uuid.UUID) (*domaincomment.Comment, error) {
+func (r *fakeCommentRepo) FindByID(_ context.Context, id uuid.UUID) (*domainComment.Comment, error) {
 	c, ok := r.comments[id]
 	if !ok {
-		return nil, domaincomment.ErrNotFound
+		return nil, domainComment.ErrNotFound
 	}
 	return c, nil
 }
 
-func (r *fakeCommentRepo) ListByParent(_ context.Context, postID uuid.UUID, parentID *uuid.UUID, first int, _ *pagination.Cursor) ([]*domaincomment.Comment, bool, error) {
-	var out []*domaincomment.Comment
+func (r *fakeCommentRepo) ListByParent(_ context.Context, postID uuid.UUID, parentID *uuid.UUID, first int, _ *pagination.Cursor) ([]*domainComment.Comment, bool, error) {
+	var out []*domainComment.Comment
 	for _, c := range r.comments {
 		if c.PostID != postID {
 			continue
@@ -67,16 +67,16 @@ func (r *fakeCommentRepo) ListByParent(_ context.Context, postID uuid.UUID, pare
 }
 
 type fakePublisher struct {
-	published []*domaincomment.Comment
+	published []*domainComment.Comment
 }
 
-func (p *fakePublisher) Publish(c *domaincomment.Comment) {
+func (p *fakePublisher) Publish(c *domainComment.Comment) {
 	p.published = append(p.published, c)
 }
 
-func newPost(t *testing.T, disabled bool) *domainpost.Post {
+func newPost(t *testing.T, disabled bool) *domainPost.Post {
 	t.Helper()
-	p, err := domainpost.New(uuid.New(), "title", "body")
+	p, err := domainPost.New(uuid.New(), "title", "body")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,45 +90,45 @@ func TestService_Create(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("post not found", func(t *testing.T) {
-		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainpost.Post{}}
-		svc := appcomment.NewService(newFakeCommentRepo(), postRepo, &fakePublisher{})
+		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainPost.Post{}}
+		svc := comment.NewService(newFakeCommentRepo(), postRepo, &fakePublisher{})
 
 		_, err := svc.Create(ctx, uuid.New(), nil, uuid.New(), "hi")
-		if !errors.Is(err, domainpost.ErrNotFound) {
-			t.Fatalf("err = %v, want %v", err, domainpost.ErrNotFound)
+		if !errors.Is(err, domainPost.ErrNotFound) {
+			t.Fatalf("err = %v, want %v", err, domainPost.ErrNotFound)
 		}
 	})
 
 	t.Run("comments disabled", func(t *testing.T) {
 		p := newPost(t, true)
-		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainpost.Post{p.ID: p}}
-		svc := appcomment.NewService(newFakeCommentRepo(), postRepo, &fakePublisher{})
+		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainPost.Post{p.ID: p}}
+		svc := comment.NewService(newFakeCommentRepo(), postRepo, &fakePublisher{})
 
 		_, err := svc.Create(ctx, p.ID, nil, uuid.New(), "hi")
-		if !errors.Is(err, domainpost.ErrCommentsDisabled) {
-			t.Fatalf("err = %v, want %v", err, domainpost.ErrCommentsDisabled)
+		if !errors.Is(err, domainPost.ErrCommentsDisabled) {
+			t.Fatalf("err = %v, want %v", err, domainPost.ErrCommentsDisabled)
 		}
 	})
 
 	t.Run("parent not found", func(t *testing.T) {
 		p := newPost(t, false)
-		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainpost.Post{p.ID: p}}
-		svc := appcomment.NewService(newFakeCommentRepo(), postRepo, &fakePublisher{})
+		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainPost.Post{p.ID: p}}
+		svc := comment.NewService(newFakeCommentRepo(), postRepo, &fakePublisher{})
 
 		missingParent := uuid.New()
 		_, err := svc.Create(ctx, p.ID, &missingParent, uuid.New(), "hi")
-		if !errors.Is(err, domaincomment.ErrNotFound) {
-			t.Fatalf("err = %v, want %v", err, domaincomment.ErrNotFound)
+		if !errors.Is(err, domainComment.ErrNotFound) {
+			t.Fatalf("err = %v, want %v", err, domainComment.ErrNotFound)
 		}
 	})
 
 	t.Run("parent belongs to a different post", func(t *testing.T) {
 		p := newPost(t, false)
 		otherPost := newPost(t, false)
-		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainpost.Post{p.ID: p, otherPost.ID: otherPost}}
+		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainPost.Post{p.ID: p, otherPost.ID: otherPost}}
 		commentRepo := newFakeCommentRepo()
 
-		parent, err := domaincomment.New(otherPost.ID, nil, uuid.New(), "on the other post")
+		parent, err := domainComment.New(otherPost.ID, nil, uuid.New(), "on the other post")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,33 +136,33 @@ func TestService_Create(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		svc := appcomment.NewService(commentRepo, postRepo, &fakePublisher{})
+		svc := comment.NewService(commentRepo, postRepo, &fakePublisher{})
 		_, err = svc.Create(ctx, p.ID, &parent.ID, uuid.New(), "hi")
-		if !errors.Is(err, appcomment.ErrParentMismatch) {
-			t.Fatalf("err = %v, want %v", err, appcomment.ErrParentMismatch)
+		if !errors.Is(err, comment.ErrParentMismatch) {
+			t.Fatalf("err = %v, want %v", err, comment.ErrParentMismatch)
 		}
 	})
 
 	t.Run("body too long", func(t *testing.T) {
 		p := newPost(t, false)
-		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainpost.Post{p.ID: p}}
-		svc := appcomment.NewService(newFakeCommentRepo(), postRepo, &fakePublisher{})
+		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainPost.Post{p.ID: p}}
+		svc := comment.NewService(newFakeCommentRepo(), postRepo, &fakePublisher{})
 
-		body := make([]byte, domaincomment.MaxBodyLength+1)
+		body := make([]byte, domainComment.MaxBodyLength+1)
 		for i := range body {
 			body[i] = 'a'
 		}
 		_, err := svc.Create(ctx, p.ID, nil, uuid.New(), string(body))
-		if !errors.Is(err, domaincomment.ErrBodyTooLong) {
-			t.Fatalf("err = %v, want %v", err, domaincomment.ErrBodyTooLong)
+		if !errors.Is(err, domainComment.ErrBodyTooLong) {
+			t.Fatalf("err = %v, want %v", err, domainComment.ErrBodyTooLong)
 		}
 	})
 
 	t.Run("valid comment publishes to subscribers", func(t *testing.T) {
 		p := newPost(t, false)
-		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainpost.Post{p.ID: p}}
+		postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainPost.Post{p.ID: p}}
 		pub := &fakePublisher{}
-		svc := appcomment.NewService(newFakeCommentRepo(), postRepo, pub)
+		svc := comment.NewService(newFakeCommentRepo(), postRepo, pub)
 
 		c, err := svc.Create(ctx, p.ID, nil, uuid.New(), "hello")
 		if err != nil {
@@ -177,9 +177,9 @@ func TestService_Create(t *testing.T) {
 func TestService_ListByPost(t *testing.T) {
 	ctx := context.Background()
 	p := newPost(t, false)
-	postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainpost.Post{p.ID: p}}
+	postRepo := &fakePostRepo{posts: map[uuid.UUID]*domainPost.Post{p.ID: p}}
 	commentRepo := newFakeCommentRepo()
-	svc := appcomment.NewService(commentRepo, postRepo, &fakePublisher{})
+	svc := comment.NewService(commentRepo, postRepo, &fakePublisher{})
 
 	top, err := svc.Create(ctx, p.ID, nil, uuid.New(), "top-level")
 	if err != nil {

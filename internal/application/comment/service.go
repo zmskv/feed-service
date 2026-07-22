@@ -14,7 +14,7 @@ type PostRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*post.Post, error)
 }
 
-type CommentRepository interface {
+type Repository interface {
 	Save(ctx context.Context, c *comment.Comment) error
 	FindByID(ctx context.Context, id uuid.UUID) (*comment.Comment, error)
 	ListByParent(ctx context.Context, postID uuid.UUID, parentID *uuid.UUID, first int, after *pagination.Cursor) ([]*comment.Comment, bool, error)
@@ -25,12 +25,12 @@ type Publisher interface {
 }
 
 type Service struct {
-	repo     CommentRepository
+	repo     Repository
 	postRepo PostRepository
 	pub      Publisher
 }
 
-func NewService(repo CommentRepository, postRepo PostRepository, pub Publisher) *Service {
+func NewService(repo Repository, postRepo PostRepository, pub Publisher) *Service {
 	return &Service{repo: repo, postRepo: postRepo, pub: pub}
 }
 

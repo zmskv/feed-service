@@ -9,17 +9,17 @@ import (
 	"github.com/zmskv/feed-service/internal/pagination"
 )
 
-type PostRepository interface {
+type Repository interface {
 	Save(ctx context.Context, p *post.Post) error
 	FindByID(ctx context.Context, id uuid.UUID) (*post.Post, error)
 	List(ctx context.Context, first int, after *pagination.Cursor) ([]*post.Post, bool, error)
 }
 
 type Service struct {
-	repo PostRepository
+	repo Repository
 }
 
-func NewService(repo PostRepository) *Service {
+func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
