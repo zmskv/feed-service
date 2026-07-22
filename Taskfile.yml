@@ -1,0 +1,50 @@
+version: '3'
+
+vars:
+  STORAGE: memory
+  THRESHOLD: 70
+
+tasks:
+  run:
+    cmds:
+      - go run ./cmd/feed-service --storage={{.STORAGE}}
+
+  build:
+    cmds:
+      - go build -o bin/server ./cmd/feed-service
+
+  test:
+    cmds:
+      - go test ./... -race -cover
+
+  test:coverage:
+    desc: тесты + отчёт покрытия + порог (без gqlgen-boilerplate в generated/)
+    cmds:
+      - go test $(go list ./... | grep -v /generated) -race -coverprofile=coverage.out
+      - go tool cover -func=coverage.out
+      - |
+        pct=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+        echo "coverage: $pct%"
+        awk -v p="$pct" -v t="{{.THRESHOLD}}" 'BEGIN { exit (p < t) }'
+
+  generate:
+    desc: gqlgen codegen из schema.graphqls
+    cmds:
+      - go run github.com/99designs/gqlgen generate
+
+  migrate:
+    desc: применить миграции к postgres
+    cmds:
+      - migrate -path migrations -database "$DATABASE_URL" up
+
+  lint:
+    cmds:
+      - golangci-lint run
+
+  docker-build:
+    cmds:
+      - docker build -t feed-service .
+
+  docker-up:
+    cmds:
+      - docker-compose up --build
