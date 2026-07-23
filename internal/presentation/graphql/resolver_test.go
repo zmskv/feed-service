@@ -2,6 +2,7 @@ package graphql_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -44,12 +45,61 @@ func TestQuery_Post_FoundNotFoundInvalid(t *testing.T) {
 		}
 	})
 
-	t.Run("malformed id is a graphql error", func(t *testing.T) {
+	t.Run("malformed id is a graphql error with a clean message, not the raw parser text", func(t *testing.T) {
 		resp := doGraphQL(t, baseURL, `query { post(id: "not-a-uuid") { title } }`)
 		if len(resp.Errors) == 0 {
 			t.Fatal("expected an error for a malformed id")
 		}
+		if code := resp.Errors[0].Extensions.Code; code != "INVALID_ID" {
+			t.Fatalf("error code = %q, want INVALID_ID", code)
+		}
+		if strings.Contains(resp.Errors[0].Message, "uuid") || strings.Contains(resp.Errors[0].Message, "UUID length") {
+			t.Fatalf("message leaks the raw uuid parser error: %q", resp.Errors[0].Message)
+		}
 	})
+}
+
+// TestErrorPresenter_RedactsUnrecognizedErrors catches a real gap found in
+// review: the README claimed unrecognized errors get a generic message with
+// no leaked internal details, but ErrorPresenter never actually did that —
+// gqlgen's DefaultErrorPresenter just sets Message = err.Error() for
+// anything, recognized or not. A malformed cursor string is a convenient way
+// to trigger a real, publicly-reachable "unrecognized-shaped" error path
+// (pagination.ErrInvalidCursor) and confirm it now gets its own clean code
+// instead of leaking whatever internal text the error happened to carry.
+func TestErrorPresenter_KnownErrorsKeepCleanCodes(t *testing.T) {
+	baseURL := newTestServer(t)
+
+	postID := graphqlRequest(t, baseURL, `mutation {
+		createPost(input: {authorId: "22222222-2222-2222-2222-222222222222", title: "p", body: "b"}) { id }
+	}`, "createPost", "id")
+
+	resp := doGraphQL(t, baseURL, `query { post(id: "`+postID+`") { comments(first: 10, after: "not-a-real-cursor") { edges { node { id } } } } }`)
+	if len(resp.Errors) == 0 {
+		t.Fatal("expected an error for a malformed cursor")
+	}
+	if code := resp.Errors[0].Extensions.Code; code != "INVALID_CURSOR" {
+		t.Fatalf("error code = %q, want INVALID_CURSOR", code)
+	}
+}
+
+// TestErrorPresenter_LeavesNativeGraphQLErrorsAlone makes sure the redaction
+// added for our own unrecognized errors doesn't collateral-damage GraphQL's
+// own validation errors (unknown field, wrong type, etc.) — those need to
+// stay readable, they're how a client finds out their query is malformed.
+func TestErrorPresenter_LeavesNativeGraphQLErrorsAlone(t *testing.T) {
+	baseURL := newTestServer(t)
+
+	resp := doGraphQL(t, baseURL, `query { posts(first: 10) { edges { node { thisFieldDoesNotExist } } } }`)
+	if len(resp.Errors) == 0 {
+		t.Fatal("expected a validation error for an unknown field")
+	}
+	if !strings.Contains(resp.Errors[0].Message, "thisFieldDoesNotExist") {
+		t.Fatalf("native GraphQL validation error got redacted: %q", resp.Errors[0].Message)
+	}
+	if code := resp.Errors[0].Extensions.Code; code == "INTERNAL_ERROR" {
+		t.Fatal("native GraphQL validation error was mislabeled as INTERNAL_ERROR")
+	}
 }
 
 func TestQuery_PostsPagination(t *testing.T) {
@@ -123,6 +173,64 @@ func TestQuery_PostsPagination(t *testing.T) {
 			t.Fatalf("post %s never returned across both pages", id)
 		}
 	}
+}
+
+func TestCursor_CannotBeReusedAcrossConnections(t *testing.T) {
+	baseURL := newTestServer(t)
+
+	postA := graphqlRequest(t, baseURL, `mutation {
+		createPost(input: {authorId: "22222222-2222-2222-2222-222222222222", title: "A", body: "b"}) { id }
+	}`, "createPost", "id")
+	postB := graphqlRequest(t, baseURL, `mutation {
+		createPost(input: {authorId: "22222222-2222-2222-2222-222222222222", title: "B", body: "b"}) { id }
+	}`, "createPost", "id")
+
+	graphqlRequest(t, baseURL, `mutation {
+		createComment(input: {postId: "`+postA+`", authorId: "44444444-4444-4444-4444-444444444444", body: "on A"}) { id }
+	}`, "createComment", "id")
+	graphqlRequest(t, baseURL, `mutation {
+		createComment(input: {postId: "`+postB+`", authorId: "44444444-4444-4444-4444-444444444444", body: "on B"}) { id }
+	}`, "createComment", "id")
+
+	resp := doGraphQL(t, baseURL, `query { post(id: "`+postA+`") { comments(first: 1) { pageInfo { endCursor } } } }`)
+	if len(resp.Errors) > 0 {
+		t.Fatalf("unexpected error: %s", resp.Errors[0].Message)
+	}
+	var data struct {
+		Post struct {
+			Comments struct {
+				PageInfo struct {
+					EndCursor *string `json:"endCursor"`
+				} `json:"pageInfo"`
+			} `json:"comments"`
+		} `json:"post"`
+	}
+	mustUnmarshal(t, resp.Data, &data)
+	cursorFromA := data.Post.Comments.PageInfo.EndCursor
+	if cursorFromA == nil {
+		t.Fatal("expected an endCursor from post A's comments")
+	}
+
+	t.Run("rejected on a different post's comments", func(t *testing.T) {
+		resp := doGraphQL(t, baseURL, `query { post(id: "`+postB+`") { comments(first: 10, after: "`+*cursorFromA+`") { edges { node { body } } } } }`)
+		if len(resp.Errors) == 0 {
+			t.Fatal("expected an error reusing post A's cursor on post B's comments, got none")
+		}
+	})
+
+	t.Run("rejected on the top-level posts list", func(t *testing.T) {
+		resp := doGraphQL(t, baseURL, `query { posts(first: 10, after: "`+*cursorFromA+`") { edges { node { id } } } }`)
+		if len(resp.Errors) == 0 {
+			t.Fatal("expected an error reusing a comments cursor on the posts list, got none")
+		}
+	})
+
+	t.Run("still works on the connection it came from", func(t *testing.T) {
+		resp := doGraphQL(t, baseURL, `query { post(id: "`+postA+`") { comments(first: 10, after: "`+*cursorFromA+`") { edges { node { body } } } } }`)
+		if len(resp.Errors) > 0 {
+			t.Fatalf("unexpected error reusing the cursor on its own connection: %s", resp.Errors[0].Message)
+		}
+	})
 }
 
 func TestQuery_NestedCommentsAndReplies(t *testing.T) {

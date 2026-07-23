@@ -73,7 +73,7 @@ func TestSubscription_CommentAdded(t *testing.T) {
 			if payload.Data.CommentAdded.Body != "pushed" {
 				t.Fatalf("pushed comment body = %q, want %q", payload.Data.CommentAdded.Body, "pushed")
 			}
-			return 
+			return
 		case "error":
 			t.Fatalf("subscription error: %s", msg.Payload)
 		default:

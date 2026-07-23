@@ -150,7 +150,7 @@ func (r *Comment) ListTopLevelByPosts(ctx context.Context, postIDs []uuid.UUID, 
 				FROM comments
 				WHERE post_id = ANY($1) AND parent_id IS NULL
 			)
-			SELECT * FROM ranked WHERE rn <= $2`, postIDs, first+1)
+			SELECT * FROM ranked WHERE rn <= $2 ORDER BY post_id, rn`, postIDs, first+1)
 	} else {
 		err = r.db.SelectContext(ctx, &rows, `
 			WITH ranked AS (
@@ -158,7 +158,7 @@ func (r *Comment) ListTopLevelByPosts(ctx context.Context, postIDs []uuid.UUID, 
 				FROM comments
 				WHERE post_id = ANY($1) AND parent_id IS NULL AND (created_at, id) > ($2, $3)
 			)
-			SELECT * FROM ranked WHERE rn <= $4`, postIDs, after.CreatedAt, after.ID, first+1)
+			SELECT * FROM ranked WHERE rn <= $4 ORDER BY post_id, rn`, postIDs, after.CreatedAt, after.ID, first+1)
 	}
 	if err != nil {
 		return nil, err
@@ -181,7 +181,7 @@ func (r *Comment) ListRepliesByParents(ctx context.Context, parentIDs []uuid.UUI
 				FROM comments
 				WHERE parent_id = ANY($1)
 			)
-			SELECT * FROM ranked WHERE rn <= $2`, parentIDs, first+1)
+			SELECT * FROM ranked WHERE rn <= $2 ORDER BY parent_id, rn`, parentIDs, first+1)
 	} else {
 		err = r.db.SelectContext(ctx, &rows, `
 			WITH ranked AS (
@@ -189,7 +189,7 @@ func (r *Comment) ListRepliesByParents(ctx context.Context, parentIDs []uuid.UUI
 				FROM comments
 				WHERE parent_id = ANY($1) AND (created_at, id) > ($2, $3)
 			)
-			SELECT * FROM ranked WHERE rn <= $4`, parentIDs, after.CreatedAt, after.ID, first+1)
+			SELECT * FROM ranked WHERE rn <= $4 ORDER BY parent_id, rn`, parentIDs, after.CreatedAt, after.ID, first+1)
 	}
 	if err != nil {
 		return nil, err

@@ -30,7 +30,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    cfg.Addr,
-		Handler: graphql.NewRouter(container.PostService, container.CommentService, container.Broadcaster),
+		Handler: graphql.NewRouter(container.PostService, container.CommentService, container.Broadcaster, log),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

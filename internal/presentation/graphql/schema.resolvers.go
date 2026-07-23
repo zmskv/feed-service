@@ -16,11 +16,12 @@ import (
 
 // Replies is the resolver for the replies field.
 func (r *commentResolver) Replies(ctx context.Context, obj *generated.Comment, first int, after *string) (*generated.CommentConnection, error) {
-	id, err := uuid.Parse(obj.ID)
+	id, err := parseID(obj.ID)
 	if err != nil {
 		return nil, err
 	}
-	cursor, err := decodeCursor(after)
+	scope := repliesScope(id)
+	cursor, err := decodeCursor(scope, after)
 	if err != nil {
 		return nil, err
 	}
@@ -29,12 +30,12 @@ func (r *commentResolver) Replies(ctx context.Context, obj *generated.Comment, f
 	if err != nil {
 		return nil, err
 	}
-	return buildCommentConnection(page.Items, page.HasNext), nil
+	return buildCommentConnection(scope, page.Items, page.HasNext), nil
 }
 
 // CreatePost is the resolver for the createPost field.
 func (r *mutationResolver) CreatePost(ctx context.Context, input generated.CreatePostInput) (*generated.Post, error) {
-	authorID, err := uuid.Parse(input.AuthorID)
+	authorID, err := parseID(input.AuthorID)
 	if err != nil {
 		return nil, err
 	}
@@ -48,18 +49,18 @@ func (r *mutationResolver) CreatePost(ctx context.Context, input generated.Creat
 
 // CreateComment is the resolver for the createComment field.
 func (r *mutationResolver) CreateComment(ctx context.Context, input generated.CreateCommentInput) (*generated.Comment, error) {
-	postID, err := uuid.Parse(input.PostID)
+	postID, err := parseID(input.PostID)
 	if err != nil {
 		return nil, err
 	}
-	authorID, err := uuid.Parse(input.AuthorID)
+	authorID, err := parseID(input.AuthorID)
 	if err != nil {
 		return nil, err
 	}
 
 	var parentID *uuid.UUID
 	if input.ParentID != nil {
-		id, err := uuid.Parse(*input.ParentID)
+		id, err := parseID(*input.ParentID)
 		if err != nil {
 			return nil, err
 		}
@@ -75,11 +76,11 @@ func (r *mutationResolver) CreateComment(ctx context.Context, input generated.Cr
 
 // DisableComments is the resolver for the disableComments field.
 func (r *mutationResolver) DisableComments(ctx context.Context, input generated.DisableCommentsInput) (*generated.Post, error) {
-	postID, err := uuid.Parse(input.PostID)
+	postID, err := parseID(input.PostID)
 	if err != nil {
 		return nil, err
 	}
-	requesterID, err := uuid.Parse(input.RequesterID)
+	requesterID, err := parseID(input.RequesterID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,11 +98,12 @@ func (r *mutationResolver) DisableComments(ctx context.Context, input generated.
 
 // Comments is the resolver for the comments field.
 func (r *postResolver) Comments(ctx context.Context, obj *generated.Post, first int, after *string) (*generated.CommentConnection, error) {
-	postID, err := uuid.Parse(obj.ID)
+	postID, err := parseID(obj.ID)
 	if err != nil {
 		return nil, err
 	}
-	cursor, err := decodeCursor(after)
+	scope := commentsScope(postID)
+	cursor, err := decodeCursor(scope, after)
 	if err != nil {
 		return nil, err
 	}
@@ -110,12 +112,12 @@ func (r *postResolver) Comments(ctx context.Context, obj *generated.Post, first 
 	if err != nil {
 		return nil, err
 	}
-	return buildCommentConnection(page.Items, page.HasNext), nil
+	return buildCommentConnection(scope, page.Items, page.HasNext), nil
 }
 
 // Posts is the resolver for the posts field.
 func (r *queryResolver) Posts(ctx context.Context, first int, after *string) (*generated.PostConnection, error) {
-	cursor, err := decodeCursor(after)
+	cursor, err := decodeCursor(postsScope, after)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +131,7 @@ func (r *queryResolver) Posts(ctx context.Context, first int, after *string) (*g
 
 // Post is the resolver for the post field.
 func (r *queryResolver) Post(ctx context.Context, id string) (*generated.Post, error) {
-	postID, err := uuid.Parse(id)
+	postID, err := parseID(id)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +148,7 @@ func (r *queryResolver) Post(ctx context.Context, id string) (*generated.Post, e
 
 // CommentAdded is the resolver for the commentAdded field.
 func (r *subscriptionResolver) CommentAdded(ctx context.Context, postID string) (<-chan *generated.Comment, error) {
-	id, err := uuid.Parse(postID)
+	id, err := parseID(postID)
 	if err != nil {
 		return nil, err
 	}

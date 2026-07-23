@@ -24,7 +24,8 @@ func NewComment() *Comment {
 func (r *Comment) Save(_ context.Context, c *comment.Comment) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.comments[c.ID] = c
+	stored := *c
+	r.comments[c.ID] = &stored
 	return nil
 }
 
@@ -35,7 +36,8 @@ func (r *Comment) FindByID(_ context.Context, id uuid.UUID) (*comment.Comment, e
 	if !ok {
 		return nil, comment.ErrNotFound
 	}
-	return c, nil
+	out := *c
+	return &out, nil
 }
 
 func (r *Comment) ListByParent(_ context.Context, postID uuid.UUID, parentID *uuid.UUID, first int, after *pagination.Cursor) ([]*comment.Comment, bool, error) {
@@ -53,7 +55,8 @@ func (r *Comment) ListByParent(_ context.Context, postID uuid.UUID, parentID *uu
 		if c.ParentID != nil && parentID != nil && *c.ParentID != *parentID {
 			continue
 		}
-		matched = append(matched, c)
+		cp := *c
+		matched = append(matched, &cp)
 	}
 
 	items, hasNext := paginateComments(matched, first, after)
@@ -74,7 +77,8 @@ func (r *Comment) ListTopLevelByPosts(_ context.Context, postIDs []uuid.UUID, fi
 		if c.ParentID != nil || !want[c.PostID] {
 			continue
 		}
-		grouped[c.PostID] = append(grouped[c.PostID], c)
+		cp := *c
+		grouped[c.PostID] = append(grouped[c.PostID], &cp)
 	}
 
 	out := make(map[uuid.UUID]*appComment.Page, len(postIDs))
@@ -99,7 +103,8 @@ func (r *Comment) ListRepliesByParents(_ context.Context, parentIDs []uuid.UUID,
 		if c.ParentID == nil || !want[*c.ParentID] {
 			continue
 		}
-		grouped[*c.ParentID] = append(grouped[*c.ParentID], c)
+		cp := *c
+		grouped[*c.ParentID] = append(grouped[*c.ParentID], &cp)
 	}
 
 	out := make(map[uuid.UUID]*appComment.Page, len(parentIDs))
