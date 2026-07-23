@@ -22,17 +22,21 @@ type Cursor struct {
 	ID        uuid.UUID
 }
 
-func Encode(c Cursor) string {
-	raw := strconv.FormatInt(c.CreatedAt.UnixNano(), 10) + "|" + c.ID.String()
+func Encode(scope string, c Cursor) string {
+	raw := scope + "|" + strconv.FormatInt(c.CreatedAt.UnixNano(), 10) + "|" + c.ID.String()
 	return base64.URLEncoding.EncodeToString([]byte(raw))
 }
 
-func Decode(s string) (Cursor, error) {
+func Decode(scope, s string) (Cursor, error) {
 	raw, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {
 		return Cursor{}, ErrInvalidCursor
 	}
-	nanosStr, idStr, ok := strings.Cut(string(raw), "|")
+	gotScope, rest, ok := strings.Cut(string(raw), "|")
+	if !ok || gotScope != scope {
+		return Cursor{}, ErrInvalidCursor
+	}
+	nanosStr, idStr, ok := strings.Cut(rest, "|")
 	if !ok {
 		return Cursor{}, ErrInvalidCursor
 	}

@@ -130,9 +130,36 @@ func TestComment_ListByParent_OldestFirstAndPagination(t *testing.T) {
 	if len(order) != total {
 		t.Fatalf("got %d comments, want %d", len(order), total)
 	}
-	for i, c := range created { // oldest-first: matches insertion order here
+	for i, c := range created {
 		if order[i] != c.ID {
 			t.Fatalf("order[%d] = %v, want %v (oldest-first)", i, order[i], c.ID)
 		}
+	}
+}
+
+func TestComment_FindByID_DoesNotAliasInternalStorage(t *testing.T) {
+	ctx := context.Background()
+	repo := memory.NewComment()
+
+	c, err := comment.New(uuid.New(), nil, uuid.New(), "original")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Save(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := repo.FindByID(ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got.Body = "mutated"
+
+	again, err := repo.FindByID(ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Body != "original" {
+		t.Fatalf("mutating a FindByID() result leaked into stored state: Body = %q, want %q", again.Body, "original")
 	}
 }

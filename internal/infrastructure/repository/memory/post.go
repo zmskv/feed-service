@@ -23,7 +23,8 @@ func NewPost() *Post {
 func (r *Post) Save(_ context.Context, p *post.Post) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.posts[p.ID] = p
+	stored := *p
+	r.posts[p.ID] = &stored
 	return nil
 }
 
@@ -34,7 +35,8 @@ func (r *Post) FindByID(_ context.Context, id uuid.UUID) (*post.Post, error) {
 	if !ok {
 		return nil, post.ErrNotFound
 	}
-	return p, nil
+	out := *p
+	return &out, nil
 }
 
 func (r *Post) List(_ context.Context, first int, after *pagination.Cursor) ([]*post.Post, bool, error) {
@@ -43,7 +45,8 @@ func (r *Post) List(_ context.Context, first int, after *pagination.Cursor) ([]*
 
 	all := make([]*post.Post, 0, len(r.posts))
 	for _, p := range r.posts {
-		all = append(all, p)
+		cp := *p
+		all = append(all, &cp)
 	}
 	sort.Slice(all, func(i, j int) bool {
 		if all[i].CreatedAt.Equal(all[j].CreatedAt) {

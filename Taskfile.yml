@@ -7,7 +7,7 @@ vars:
 tasks:
   run:
     cmds:
-      - go run ./cmd/feed-service --storage={{.STORAGE}}
+      - STORAGE={{.STORAGE}} go run ./cmd/feed-service
 
   build:
     cmds:

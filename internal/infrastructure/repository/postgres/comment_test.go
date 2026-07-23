@@ -149,3 +149,63 @@ func TestComment_ListByParent_OldestFirstAndPagination(t *testing.T) {
 		}
 	}
 }
+
+func TestComment_ListTopLevelByPosts_TruncatesInRankOrder(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	repo := postgres.NewComment(db)
+
+	const perPost = 7
+	const first = 5
+	postA := seedPost(t, db)
+	postB := seedPost(t, db)
+
+	base := time.Now().UTC()
+	wantOldestFirst := map[uuid.UUID][]uuid.UUID{postA: nil, postB: nil}
+	for i := perPost - 1; i >= 0; i-- {
+		for _, postID := range []uuid.UUID{postA, postB} {
+			c, err := comment.New(postID, nil, uuid.New(), "c")
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.CreatedAt = base.Add(time.Duration(i) * time.Second)
+			if err := repo.Save(ctx, c); err != nil {
+				t.Fatal(err)
+			}
+			wantOldestFirst[postID] = append([]uuid.UUID{c.ID}, wantOldestFirst[postID]...)
+		}
+	}
+
+	pages, err := repo.ListTopLevelByPosts(ctx, []uuid.UUID{postA, postB}, first, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, postID := range []uuid.UUID{postA, postB} {
+		p := pages[postID]
+		if p == nil {
+			t.Fatalf("post %v: no page returned", postID)
+		}
+		if !p.HasNext {
+			t.Fatalf("post %v: hasNext = false, want true (%d comments, first=%d)", postID, perPost, first)
+		}
+		if len(p.Items) != first {
+			t.Fatalf("post %v: got %d items, want %d", postID, len(p.Items), first)
+		}
+		want := wantOldestFirst[postID][:first]
+		for i, c := range p.Items {
+			if c.ID != want[i] {
+				t.Fatalf("post %v item[%d] = %v, want %v (oldest-first, rank order) — got %v, want %v",
+					postID, i, c.ID, want[i], idsOf(p.Items), want)
+			}
+		}
+	}
+}
+
+func idsOf(cs []*comment.Comment) []uuid.UUID {
+	out := make([]uuid.UUID, len(cs))
+	for i, c := range cs {
+		out[i] = c.ID
+	}
+	return out
+}

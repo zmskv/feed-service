@@ -15,7 +15,7 @@ func base64Encode(s string) string {
 func TestEncodeDecode_RoundTrip(t *testing.T) {
 	want := Cursor{CreatedAt: time.Now().Truncate(time.Nanosecond), ID: uuid.New()}
 
-	got, err := Decode(Encode(want))
+	got, err := Decode("posts", Encode("posts", want))
 	if err != nil {
 		t.Fatalf("Decode() error = %v", err)
 	}
@@ -24,11 +24,27 @@ func TestEncodeDecode_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestDecode_ScopeMismatchIsRejected(t *testing.T) {
+	c := Cursor{CreatedAt: time.Now(), ID: uuid.New()}
+	encoded := Encode("comments:post-A", c)
+
+	if _, err := Decode("comments:post-B", encoded); err == nil {
+		t.Fatal("Decode() with a different scope = nil error, want ErrInvalidCursor (a cursor from one connection must not work on another)")
+	}
+	if _, err := Decode("posts", encoded); err == nil {
+		t.Fatal("Decode() with a different scope = nil error, want ErrInvalidCursor")
+	}
+	// but the original scope still works
+	if _, err := Decode("comments:post-A", encoded); err != nil {
+		t.Fatalf("Decode() with the matching scope: unexpected error = %v", err)
+	}
+}
+
 func TestDecode_Invalid(t *testing.T) {
-	tests := []string{"", "not-base64!!!", base64Encode("no-separator"), base64Encode("abc|def")}
+	tests := []string{"", "not-base64!!!", base64Encode("no-separator"), base64Encode("scope|abc|def")}
 
 	for _, s := range tests {
-		if _, err := Decode(s); err == nil {
+		if _, err := Decode("scope", s); err == nil {
 			t.Fatalf("Decode(%q) = nil error, want ErrInvalidCursor", s)
 		}
 	}

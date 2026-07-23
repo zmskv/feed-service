@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"go.uber.org/zap"
+
 	"github.com/zmskv/feed-service/internal/config"
 	"github.com/zmskv/feed-service/internal/di"
 	"github.com/zmskv/feed-service/internal/presentation/graphql"
@@ -32,7 +34,7 @@ func newTestServer(t *testing.T) string {
 	}
 	t.Cleanup(func() { container.Close() })
 
-	srv := httptest.NewServer(graphql.NewRouter(container.PostService, container.CommentService, container.Broadcaster))
+	srv := httptest.NewServer(graphql.NewRouter(container.PostService, container.CommentService, container.Broadcaster, zap.NewNop()))
 	t.Cleanup(srv.Close)
 	return srv.URL
 }
